@@ -1,13 +1,35 @@
-from commands.apps import open_chrome
+from commands.apps import (
+    open_chrome,
+    open_notepad,
+    open_calculator,
+    open_vscode,
+)
+
+from commands.explorer import (
+    open_explorer,
+    open_downloads,
+    open_documents,
+)
+
+COMMANDS = {
+    ("open", "chrome"): open_chrome,
+    ("open", "notepad"): open_notepad,
+    ("open", "calculator"): open_calculator,
+    ("open", "vscode"): open_vscode,
+    ("open", "explorer"): open_explorer,
+    ("open", "downloads"): open_downloads,
+    ("open", "documents"): open_documents,
+}
 
 
 def execute_command(action: str, target: str):
-    action = action.lower()
-    target = target.lower()
+    action = action.lower().strip()
+    target = target.lower().strip()
 
-    if action == "open":
-        if target == "chrome":
-            return open_chrome()
+    handler = COMMANDS.get((action, target))
+
+    if handler:
+        return handler()
 
     return {
         "success": False,
