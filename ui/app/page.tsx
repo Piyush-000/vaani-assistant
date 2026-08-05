@@ -1,57 +1,126 @@
 "use client";
 
+import { useState } from "react";
+
+import BackendStatus from "@/components/BackendStatus";
+import CommandButton from "@/components/CommandButton";
+import CommandInput from "@/components/CommandInput";
+import StatusCard from "@/components/StatusCard";
+
+import { processCommand } from "@/lib/commandEngine";
+
 export default function Home() {
-  async function openChrome() {
-    try {
-      const response = await fetch("http://127.0.0.1:8000/command", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "open",
-          target: "chrome",
-        }),
-      });
+  function updateStatus(message: string) {
+  setStatus(message);
 
-      const data = await response.json();
-
-      alert(data.message);
-    } catch (error) {
-      alert("Cannot connect to backend.");
-      console.error(error);
-    }
-  }
+  setHistory((previous) => [
+    message,
+    ...previous.slice(0, 9),
+  ]);
+}
+  const [status, setStatus] = useState("Ready...");
+  const [history, setHistory] = useState<string[]>([]);
 
   return (
-    <main
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100vh",
-        background: "#0a0a0a",
-        color: "white",
-        gap: "20px",
-        fontFamily: "Arial",
-      }}
-    >
-      <h1 style={{ fontSize: "48px" }}>VAANI</h1>
+    <main className="min-h-screen bg-zinc-950 text-white p-10">
+      <div className="mx-auto max-w-5xl">
 
-      <p>Your Personal AI Assistant</p>
+        <h1 className="text-5xl font-bold tracking-wide">
+          VAANI
+        </h1>
 
-      <button
-        onClick={openChrome}
-        style={{
-          padding: "15px 30px",
-          fontSize: "18px",
-          cursor: "pointer",
-          borderRadius: "8px",
-        }}
-      >
-        Open Chrome
-      </button>
+        <p className="mt-2 text-zinc-400">
+          Your Personal AI Assistant
+        </p>
+
+        <div className="mt-8">
+          <BackendStatus />
+        </div>
+
+        <div className="mt-6">
+          <CommandInput
+            onExecute={(command) =>
+              processCommand(command, setStatus)
+            }
+          />
+        </div>
+
+        <div className="mt-10 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+
+          <h2 className="mb-6 text-2xl font-semibold">
+            Applications
+          </h2>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+
+            <CommandButton
+              label="🌐 Chrome"
+              onClick={() =>
+                processCommand("open chrome", updateStatus)
+              }
+            />
+
+            <CommandButton
+              label="💻 VS Code"
+              onClick={() =>
+                processCommand("open vscode", updateStatus)
+              }
+            />
+
+            <CommandButton
+              label="📝 Notepad"
+              onClick={() =>
+                processCommand("open notepad", updateStatus)
+              }
+            />
+
+            <CommandButton
+              label="🧮 Calculator"
+              onClick={() =>
+                processCommand("open calculator", updateStatus)
+              }
+            />
+
+            <CommandButton
+              label="📁 Explorer"
+              onClick={() =>
+                processCommand("open explorer", updateStatus)
+              }
+            />
+
+          </div>
+
+        </div>
+
+        <div className="mt-8 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+
+          <h2 className="mb-6 text-2xl font-semibold">
+            Folders
+          </h2>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+
+            <CommandButton
+              label="📂 Downloads"
+              onClick={() =>
+                processCommand("open downloads", updateStatus)
+              }
+            />
+
+            <CommandButton
+              label="📄 Documents"
+              onClick={() =>
+                processCommand("open documents", updateStatus)
+              }
+            />
+
+          </div>
+
+        </div>
+
+        <StatusCard message={status} />
+
+      </div>
     </main>
   );
 }
