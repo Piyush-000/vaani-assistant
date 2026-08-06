@@ -2,14 +2,16 @@ import { sendCommand } from "./api";
 
 export async function processCommand(
   command: string,
-  updateStatus: (message: string) => void
+  setStatus: (message: string) => void,
+  addHistory?: (message: string) => void
 ) {
   const text = command.trim().toLowerCase();
 
   const words = text.split(/\s+/);
 
   if (words.length < 2) {
-    updateStatus("Invalid command.");
+    setStatus("Invalid command.");
+    addHistory?.("Invalid command.");
     return;
   }
 
@@ -21,7 +23,8 @@ export async function processCommand(
     action !== "launch" &&
     action !== "start"
   ) {
-    updateStatus("Unsupported command.");
+    setStatus("Unsupported command.");
+    addHistory?.("Unsupported command.");
     return;
   }
 
@@ -49,16 +52,26 @@ export async function processCommand(
   const mappedTarget = aliases[target];
 
   if (!mappedTarget) {
-    updateStatus(`Unknown target: ${target}`);
+    const message = `Unknown target: ${target}`;
+    setStatus(message);
+    addHistory?.(message);
     return;
   }
 
-  updateStatus(`Opening ${mappedTarget}...`);
+  // Show temporary status only
+  setStatus(`Opening ${mappedTarget}...`);
 
   try {
     const result = await sendCommand("open", mappedTarget);
-    updateStatus(result.message);
+
+    // Final status
+    setStatus(result.message);
+
+    // Record only the final result
+    addHistory?.(result.message);
   } catch {
-    updateStatus("Unable to connect to backend.");
+    const message = "Unable to connect to backend.";
+    setStatus(message);
+    addHistory?.(message);
   }
 }

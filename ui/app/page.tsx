@@ -4,22 +4,41 @@ import { useState } from "react";
 
 import BackendStatus from "@/components/BackendStatus";
 import CommandButton from "@/components/CommandButton";
+import CommandHistory from "@/components/CommandHistory";
 import CommandInput from "@/components/CommandInput";
 import StatusCard from "@/components/StatusCard";
 
 import { processCommand } from "@/lib/commandEngine";
 
-export default function Home() {
-  function updateStatus(message: string) {
-  setStatus(message);
+type CommandHistoryItem = {
+  message: string;
+  success: boolean;
+  time: string;
+};
 
-  setHistory((previous) => [
-    message,
-    ...previous.slice(0, 9),
-  ]);
-}
+export default function Home() {
   const [status, setStatus] = useState("Ready...");
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<CommandHistoryItem[]>([]);
+
+  function addHistory(message: string) {
+    const success =
+      message.toLowerCase().includes("successfully") ||
+      message.toLowerCase().includes("opened");
+
+    const time = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    setHistory((previous) => [
+      {
+        message,
+        success,
+        time,
+      },
+      ...previous.slice(0, 9),
+    ]);
+  }
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white p-10">
@@ -40,7 +59,11 @@ export default function Home() {
         <div className="mt-6">
           <CommandInput
             onExecute={(command) =>
-              processCommand(command, setStatus)
+              processCommand(
+                command,
+                setStatus,
+                addHistory
+              )
             }
           />
         </div>
@@ -51,40 +74,60 @@ export default function Home() {
             Applications
           </h2>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
 
             <CommandButton
               label="🌐 Chrome"
               onClick={() =>
-                processCommand("open chrome", updateStatus)
+                processCommand(
+                  "open chrome",
+                  setStatus,
+                  addHistory
+                )
               }
             />
 
             <CommandButton
               label="💻 VS Code"
               onClick={() =>
-                processCommand("open vscode", updateStatus)
+                processCommand(
+                  "open vscode",
+                  setStatus,
+                  addHistory
+                )
               }
             />
 
             <CommandButton
               label="📝 Notepad"
               onClick={() =>
-                processCommand("open notepad", updateStatus)
+                processCommand(
+                  "open notepad",
+                  setStatus,
+                  addHistory
+                )
               }
             />
 
             <CommandButton
               label="🧮 Calculator"
               onClick={() =>
-                processCommand("open calculator", updateStatus)
+                processCommand(
+                  "open calculator",
+                  setStatus,
+                  addHistory
+                )
               }
             />
 
             <CommandButton
               label="📁 Explorer"
               onClick={() =>
-                processCommand("open explorer", updateStatus)
+                processCommand(
+                  "open explorer",
+                  setStatus,
+                  addHistory
+                )
               }
             />
 
@@ -98,19 +141,27 @@ export default function Home() {
             Folders
           </h2>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
 
             <CommandButton
               label="📂 Downloads"
               onClick={() =>
-                processCommand("open downloads", updateStatus)
+                processCommand(
+                  "open downloads",
+                  setStatus,
+                  addHistory
+                )
               }
             />
 
             <CommandButton
               label="📄 Documents"
               onClick={() =>
-                processCommand("open documents", updateStatus)
+                processCommand(
+                  "open documents",
+                  setStatus,
+                  addHistory
+                )
               }
             />
 
@@ -119,6 +170,8 @@ export default function Home() {
         </div>
 
         <StatusCard message={status} />
+
+        <CommandHistory history={history} />
 
       </div>
     </main>
