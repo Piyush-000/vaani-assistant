@@ -75,9 +75,24 @@ const repeatCommands = new Set([
   "repeat the last application",
 ]);
 
+const queryCommands = new Set([
+  "what did i open",
+  "what did i open last",
+  "what did i open recently",
+  "what was my previous command",
+  "what was the previous command",
+  "what was my last command",
+  "what was the last app",
+  "what was the last application",
+  "what did i launch last",
+  "what did i start last",
+]);
+
 const LAST_TARGET_KEY = "vaani_last_target";
+const LAST_COMMAND_KEY = "vaani_last_command";
 
 let lastTarget: string | null = null;
+let lastCommand: string | null = null;
 
 function loadLastTarget(): string | null {
   if (typeof window === "undefined") {
@@ -102,6 +117,35 @@ function saveLastTarget(target: string): void {
     window.localStorage.setItem(
       LAST_TARGET_KEY,
       target
+    );
+  } catch {
+    // Ignore localStorage errors.
+  }
+}
+
+function loadLastCommand(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    return window.localStorage.getItem(
+      LAST_COMMAND_KEY
+    );
+  } catch {
+    return null;
+  }
+}
+
+function saveLastCommand(command: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      LAST_COMMAND_KEY,
+      command
     );
   } catch {
     // Ignore localStorage errors.
@@ -147,6 +191,10 @@ function isRepeatCommand(text: string): boolean {
   return repeatCommands.has(text);
 }
 
+function isQueryCommand(text: string): boolean {
+  return queryCommands.has(text);
+}
+
 function addMissingAction(command: string): string {
   const text = cleanCommand(command);
 
@@ -189,8 +237,31 @@ function resolveLastTarget(): string | null {
   return lastTarget;
 }
 
+function resolveLastCommand(): string | null {
+  if (!lastCommand) {
+    lastCommand = loadLastCommand();
+  }
+
+  return lastCommand;
+}
+
+function getDisplayName(target: string): string {
+  const displayNames: Record<string, string> = {
+    chrome: "Chrome",
+    notepad: "Notepad",
+    calculator: "Calculator",
+    vscode: "VS Code",
+    explorer: "File Explorer",
+    downloads: "Downloads",
+    documents: "Documents",
+  };
+
+  return displayNames[target] ?? target;
+}
+
 async function executeTarget(
   target: string,
+  originalCommand: string,
   setStatus: StatusUpdater,
   addHistory?: HistoryUpdater
 ): Promise<boolean> {
@@ -208,6 +279,9 @@ async function executeTarget(
     if (result.success !== false) {
       lastTarget = target;
       saveLastTarget(target);
+
+      lastCommand = originalCommand;
+      saveLastCommand(originalCommand);
     }
 
     return result.success !== false;
@@ -234,13 +308,49 @@ async function executeSingleCommand(
   }
 
   /*
-   * Repeat commands must be checked BEFORE
+   * Query commands must be checked before
    * normal command parsing.
-   *
-   * Examples:
-   * repeat
-   * repeat last command
-   * repeat the last app
+   */
+  if (isQueryCommand(text)) {
+    const target = resolveLastTarget();
+    const previousCommand = resolveLastCommand();
+
+    if (!target) {
+      const message =
+        "I don't have a previous command yet.";
+
+      setStatus(message);
+      addHistory?.(message);
+
+      return false;
+    }
+
+    const displayName =
+      getDisplayName(target);
+
+    let message: string;
+
+    if (
+      text.includes("previous command") ||
+      text.includes("last command")
+    ) {
+      message = previousCommand
+        ? `Your previous command was: "${previousCommand}".`
+        : `You last opened ${displayName}.`;
+    } else {
+      message =
+        `You last opened ${displayName}.`;
+    }
+
+    setStatus(message);
+    addHistory?.(message);
+
+    return true;
+  }
+
+  /*
+   * Repeat commands must be checked before
+   * normal command parsing.
    */
   if (isRepeatCommand(text)) {
     const target = resolveLastTarget();
@@ -257,6 +367,7 @@ async function executeSingleCommand(
 
     return executeTarget(
       target,
+      `open ${target}`,
       setStatus,
       addHistory
     );
@@ -328,6 +439,7 @@ async function executeSingleCommand(
 
   return executeTarget(
     mappedTarget,
+    text,
     setStatus,
     addHistory
   );
@@ -352,12 +464,10 @@ export async function processCommand(
   const commands = splitCommands(text);
 
   /*
-   * IMPORTANT:
-   * Do NOT call addMissingAction() here before
-   * executeSingleCommand().
-   *
-   * executeSingleCommand() needs to see commands
-   * like "repeat" exactly as they were entered.
+   * Do not add a missing action here.
+   * Commands such as "repeat" and
+   * "what did i open last" must reach
+   * executeSingleCommand unchanged.
    */
   for (const currentCommand of commands) {
     await executeSingleCommand(
