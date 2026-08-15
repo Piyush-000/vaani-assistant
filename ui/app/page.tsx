@@ -55,17 +55,23 @@ export default function Home() {
      * a successful action/query is displayed as successful.
      */
     const success =
-      !failure &&
-      (
-        normalizedMessage.includes("successfully") ||
-        normalizedMessage.includes("opened") ||
-        normalizedMessage.includes(
-          "your previous command was"
-        ) ||
-        normalizedMessage.includes(
-          "you last opened"
-        )
-      );
+  !failure &&
+  (
+    normalizedMessage.includes("successfully") ||
+    normalizedMessage.includes("opened") ||
+    normalizedMessage.includes(
+      "your previous command was"
+    ) ||
+    normalizedMessage.includes(
+      "you last opened"
+    ) ||
+    normalizedMessage.includes(
+      "your last"
+    ) ||
+    normalizedMessage.includes(
+      "your recent commands"
+    )
+  );
 
     const time = new Date().toLocaleTimeString([], {
       hour: "2-digit",

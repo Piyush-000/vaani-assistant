@@ -73,6 +73,8 @@ const repeatCommands = new Set([
   "repeat the last app",
   "repeat last application",
   "repeat the last application",
+  "repeat my previous command",
+  "repeat my last command",
 ]);
 
 const queryCommands = new Set([
@@ -88,11 +90,25 @@ const queryCommands = new Set([
   "what did i start last",
 ]);
 
+const recentCommands = new Set([
+  "show recent commands",
+  "show my recent commands",
+  "show recent command",
+  "show my recent command",
+  "what are my recent commands",
+  "what were my recent commands",
+  "what were my last commands",
+]);
+
 const LAST_TARGET_KEY = "vaani_last_target";
 const LAST_COMMAND_KEY = "vaani_last_command";
+const COMMAND_HISTORY_KEY = "vaani_command_history";
+
+const MAX_COMMAND_HISTORY = 10;
 
 let lastTarget: string | null = null;
 let lastCommand: string | null = null;
+let commandHistory: string[] = [];
 
 function loadLastTarget(): string | null {
   if (typeof window === "undefined") {
@@ -152,6 +168,85 @@ function saveLastCommand(command: string): void {
   }
 }
 
+function loadCommandHistory(): string[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const stored =
+      window.localStorage.getItem(
+        COMMAND_HISTORY_KEY
+      );
+
+    if (!stored) {
+      return [];
+    }
+
+    const parsed: unknown =
+      JSON.parse(stored);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter(
+      (item): item is string =>
+        typeof item === "string"
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveCommandHistory(
+  history: string[]
+): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      COMMAND_HISTORY_KEY,
+      JSON.stringify(history)
+    );
+  } catch {
+    // Ignore localStorage errors.
+  }
+}
+
+function resolveCommandHistory(): string[] {
+  if (commandHistory.length === 0) {
+    commandHistory =
+      loadCommandHistory();
+  }
+
+  return commandHistory;
+}
+
+function rememberCommand(
+  command: string
+): void {
+  const cleaned = cleanCommand(command);
+
+  if (!cleaned) {
+    return;
+  }
+
+  const history =
+    resolveCommandHistory();
+
+  commandHistory = [
+    cleaned,
+    ...history.filter(
+      (item) => item !== cleaned
+    ),
+  ].slice(0, MAX_COMMAND_HISTORY);
+
+  saveCommandHistory(commandHistory);
+}
+
 function cleanCommand(command: string): string {
   return command
     .trim()
@@ -160,10 +255,13 @@ function cleanCommand(command: string): string {
     .replace(/\s+/g, " ");
 }
 
-function findTarget(text: string): string | null {
-  const sortedAliases = Object.keys(aliases).sort(
-    (a, b) => b.length - a.length
-  );
+function findTarget(
+  text: string
+): string | null {
+  const sortedAliases =
+    Object.keys(aliases).sort(
+      (a, b) => b.length - a.length
+    );
 
   for (const alias of sortedAliases) {
     if (
@@ -177,7 +275,9 @@ function findTarget(text: string): string | null {
   return null;
 }
 
-function splitCommands(command: string): string[] {
+function splitCommands(
+  command: string
+): string[] {
   const parts = command.split(
     /\s+(?:and\s+then|then|and)\s+/i
   );
@@ -187,20 +287,40 @@ function splitCommands(command: string): string[] {
     .filter(Boolean);
 }
 
-function isRepeatCommand(text: string): boolean {
+function isRepeatCommand(
+  text: string
+): boolean {
   return repeatCommands.has(text);
 }
 
-function isQueryCommand(text: string): boolean {
+function isQueryCommand(
+  text: string
+): boolean {
   return queryCommands.has(text);
 }
 
-function addMissingAction(command: string): string {
+function isRecentCommandsQuery(
+  text: string
+): boolean {
+  if (recentCommands.has(text)) {
+    return true;
+  }
+
+  return /^what (?:are|were) my last \d+ commands?$/.test(
+    text
+  );
+}
+
+function addMissingAction(
+  command: string
+): string {
   const text = cleanCommand(command);
 
   const hasAction = text
     .split(/\s+/)
-    .some((word) => actionWords.has(word));
+    .some((word) =>
+      actionWords.has(word)
+    );
 
   if (hasAction) {
     return text;
@@ -212,18 +332,21 @@ function addMissingAction(command: string): string {
 function resolveContextTarget(
   targetText: string
 ): string | null {
-  const words = targetText.split(/\s+/);
+  const words =
+    targetText.split(/\s+/);
 
-  const containsContextWord = words.some((word) =>
-    contextWords.has(word)
-  );
+  const containsContextWord =
+    words.some((word) =>
+      contextWords.has(word)
+    );
 
   if (!containsContextWord) {
     return null;
   }
 
   if (!lastTarget) {
-    lastTarget = loadLastTarget();
+    lastTarget =
+      loadLastTarget();
   }
 
   return lastTarget;
@@ -231,7 +354,8 @@ function resolveContextTarget(
 
 function resolveLastTarget(): string | null {
   if (!lastTarget) {
-    lastTarget = loadLastTarget();
+    lastTarget =
+      loadLastTarget();
   }
 
   return lastTarget;
@@ -239,14 +363,20 @@ function resolveLastTarget(): string | null {
 
 function resolveLastCommand(): string | null {
   if (!lastCommand) {
-    lastCommand = loadLastCommand();
+    lastCommand =
+      loadLastCommand();
   }
 
   return lastCommand;
 }
 
-function getDisplayName(target: string): string {
-  const displayNames: Record<string, string> = {
+function getDisplayName(
+  target: string
+): string {
+  const displayNames: Record<
+    string,
+    string
+  > = {
     chrome: "Chrome",
     notepad: "Notepad",
     calculator: "Calculator",
@@ -256,16 +386,110 @@ function getDisplayName(target: string): string {
     documents: "Documents",
   };
 
-  return displayNames[target] ?? target;
+  return (
+    displayNames[target] ?? target
+  );
+}
+
+function getHistoryCount(text: string): number {
+  const match = text.match(
+    /\blast\s+(\d+)\b/
+  );
+
+  if (!match) {
+    return 3;
+  }
+
+  const requested = Number(match[1]);
+
+  if (
+    !Number.isFinite(requested) ||
+    requested <= 0
+  ) {
+    return 3;
+  }
+
+  return Math.min(
+    requested,
+    MAX_COMMAND_HISTORY
+  );
+}
+
+function formatCommandList(
+  commands: string[]
+): string {
+  return commands
+    .map(
+      (command, index) =>
+        `${index + 1}. ${command}`
+    )
+    .join(" | ");
+}
+
+function findCommandBeforeTarget(
+  targetText: string
+): string | null {
+  const history =
+    resolveCommandHistory();
+
+  const mappedTarget =
+    findTarget(targetText);
+
+  if (!mappedTarget) {
+    return null;
+  }
+
+  const targetCommand =
+    history.find((command) =>
+      command.endsWith(
+        ` ${mappedTarget}`
+      )
+    );
+
+  if (!targetCommand) {
+    return null;
+  }
+
+  const targetIndex =
+    history.indexOf(
+      targetCommand
+    );
+
+  if (
+    targetIndex === -1 ||
+    targetIndex >=
+      history.length - 1
+  ) {
+    return null;
+  }
+
+  return history[targetIndex + 1];
+}
+
+function extractBeforeTarget(
+  text: string
+): string | null {
+  const match = text.match(
+    /what did i open before (.+)$/
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  return match[1].trim();
 }
 
 async function executeTarget(
   target: string,
   originalCommand: string,
   setStatus: StatusUpdater,
-  addHistory?: HistoryUpdater
+  addHistory?: HistoryUpdater,
+  rememberAsNewCommand = true
 ): Promise<boolean> {
-  setStatus(`Opening ${target}...`);
+  setStatus(
+    `Opening ${target}...`
+  );
 
   try {
     const result = await sendCommand(
@@ -280,8 +504,19 @@ async function executeTarget(
       lastTarget = target;
       saveLastTarget(target);
 
-      lastCommand = originalCommand;
+      /*
+       * Store the command that produced
+       * this successful action.
+       */
+      lastCommand =
+        originalCommand;
       saveLastCommand(originalCommand);
+
+      if (rememberAsNewCommand) {
+        rememberCommand(
+          originalCommand
+        );
+      }
     }
 
     return result.success !== false;
@@ -301,19 +536,97 @@ async function executeSingleCommand(
   setStatus: StatusUpdater,
   addHistory?: HistoryUpdater
 ): Promise<boolean> {
-  const text = cleanCommand(command);
+  const text =
+    cleanCommand(command);
 
   if (!text) {
     return false;
   }
 
   /*
-   * Query commands must be checked before
-   * normal command parsing.
+   * ------------------------------------------------
+   * RECENT COMMANDS QUERY
+   * ------------------------------------------------
+   */
+  if (isRecentCommandsQuery(text)) {
+    const history =
+      resolveCommandHistory();
+
+    if (history.length === 0) {
+      const message =
+        "I don't have any recent commands yet.";
+
+      setStatus(message);
+      addHistory?.(message);
+
+      return false;
+    }
+
+    const count =
+      getHistoryCount(text);
+
+    const recent =
+      history.slice(0, count);
+
+    const message =
+      `Your last ${recent.length} command${
+        recent.length === 1
+          ? ""
+          : "s"
+      } were: ${formatCommandList(
+        recent
+      )}.`;
+
+    setStatus(message);
+    addHistory?.(message);
+
+    return true;
+  }
+
+  /*
+   * ------------------------------------------------
+   * "WHAT DID I OPEN BEFORE X?"
+   * ------------------------------------------------
+   */
+  const beforeTarget =
+    extractBeforeTarget(text);
+
+  if (beforeTarget) {
+    const previousCommand =
+      findCommandBeforeTarget(
+        beforeTarget
+      );
+
+    if (!previousCommand) {
+      const message =
+        `I don't have a previous command before ${beforeTarget}.`;
+
+      setStatus(message);
+      addHistory?.(message);
+
+      return false;
+    }
+
+    const message =
+      `Before ${beforeTarget}, you used: "${previousCommand}".`;
+
+    setStatus(message);
+    addHistory?.(message);
+
+    return true;
+  }
+
+  /*
+   * ------------------------------------------------
+   * LAST APP / COMMAND QUERY
+   * ------------------------------------------------
    */
   if (isQueryCommand(text)) {
-    const target = resolveLastTarget();
-    const previousCommand = resolveLastCommand();
+    const target =
+      resolveLastTarget();
+
+    const previousCommand =
+      resolveLastCommand();
 
     if (!target) {
       const message =
@@ -331,8 +644,12 @@ async function executeSingleCommand(
     let message: string;
 
     if (
-      text.includes("previous command") ||
-      text.includes("last command")
+      text.includes(
+        "previous command"
+      ) ||
+      text.includes(
+        "last command"
+      )
     ) {
       message = previousCommand
         ? `Your previous command was: "${previousCommand}".`
@@ -349,11 +666,13 @@ async function executeSingleCommand(
   }
 
   /*
-   * Repeat commands must be checked before
-   * normal command parsing.
+   * ------------------------------------------------
+   * REPEAT COMMAND
+   * ------------------------------------------------
    */
   if (isRepeatCommand(text)) {
-    const target = resolveLastTarget();
+    const target =
+      resolveLastTarget();
 
     if (!target) {
       const message =
@@ -369,15 +688,23 @@ async function executeSingleCommand(
       target,
       `open ${target}`,
       setStatus,
-      addHistory
+      addHistory,
+      true
     );
   }
 
-  const words = text.split(/\s+/);
+  /*
+   * ------------------------------------------------
+   * NORMAL OPEN / LAUNCH / START COMMAND
+   * ------------------------------------------------
+   */
+  const words =
+    text.split(/\s+/);
 
-  const action = words.find((word) =>
-    actionWords.has(word)
-  );
+  const action =
+    words.find((word) =>
+      actionWords.has(word)
+    );
 
   if (!action) {
     const message =
@@ -389,15 +716,21 @@ async function executeSingleCommand(
     return false;
   }
 
-  const actionIndex = words.indexOf(action);
+  const actionIndex =
+    words.indexOf(action);
 
-  const targetWords = words
-    .slice(actionIndex + 1)
-    .filter(
-      (word) => !conversationalWords.has(word)
-    );
+  const targetWords =
+    words
+      .slice(actionIndex + 1)
+      .filter(
+        (word) =>
+          !conversationalWords.has(
+            word
+          )
+      );
 
-  const targetText = targetWords.join(" ");
+  const targetText =
+    targetWords.join(" ");
 
   if (!targetText) {
     const message =
@@ -409,7 +742,8 @@ async function executeSingleCommand(
     return false;
   }
 
-  let mappedTarget = findTarget(targetText);
+  let mappedTarget =
+    findTarget(targetText);
 
   /*
    * Context support:
@@ -421,18 +755,21 @@ async function executeSingleCommand(
    */
   if (!mappedTarget) {
     mappedTarget =
-      resolveContextTarget(targetText);
+      resolveContextTarget(
+        targetText
+      );
   }
 
   if (!mappedTarget) {
-    const contextMessage = contextWords.has(
-      targetText
-    )
-      ? "I don't have a previous command to refer to."
-      : `I don't know how to open "${targetText}" yet.`;
+    const contextMessage =
+      contextWords.has(targetText)
+        ? "I don't have a previous command to refer to."
+        : `I don't know how to open "${targetText}" yet.`;
 
     setStatus(contextMessage);
-    addHistory?.(contextMessage);
+    addHistory?.(
+      contextMessage
+    );
 
     return false;
   }
@@ -441,7 +778,8 @@ async function executeSingleCommand(
     mappedTarget,
     text,
     setStatus,
-    addHistory
+    addHistory,
+    true
   );
 }
 
@@ -450,10 +788,12 @@ export async function processCommand(
   setStatus: StatusUpdater,
   addHistory?: HistoryUpdater
 ) {
-  const text = cleanCommand(command);
+  const text =
+    cleanCommand(command);
 
   if (!text) {
-    const message = "Please enter a command.";
+    const message =
+      "Please enter a command.";
 
     setStatus(message);
     addHistory?.(message);
@@ -461,15 +801,24 @@ export async function processCommand(
     return;
   }
 
-  const commands = splitCommands(text);
+  const commands =
+    splitCommands(text);
 
   /*
    * Do not add a missing action here.
-   * Commands such as "repeat" and
-   * "what did i open last" must reach
-   * executeSingleCommand unchanged.
+   *
+   * Commands such as:
+   *
+   * repeat
+   * what did i open last
+   * what were my last 3 commands
+   *
+   * must reach executeSingleCommand
+   * unchanged.
    */
-  for (const currentCommand of commands) {
+  for (
+    const currentCommand of commands
+  ) {
     await executeSingleCommand(
       currentCommand,
       setStatus,
