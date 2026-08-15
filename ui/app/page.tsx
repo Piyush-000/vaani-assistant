@@ -7,6 +7,7 @@ import CommandButton from "@/components/CommandButton";
 import CommandHistory from "@/components/CommandHistory";
 import CommandInput from "@/components/CommandInput";
 import StatusCard from "@/components/StatusCard";
+import VoiceButton from "@/components/VoiceButton";
 
 import { processCommand } from "@/lib/commandEngine";
 
@@ -21,9 +22,20 @@ export default function Home() {
   const [history, setHistory] = useState<CommandHistoryItem[]>([]);
 
   function addHistory(message: string) {
+    const normalizedMessage = message.trim().toLowerCase();
+
+    // Do not add temporary/progress messages to command history.
+    if (
+      normalizedMessage.startsWith("opening ") ||
+      normalizedMessage === "listening..." ||
+      normalizedMessage.startsWith("heard:")
+    ) {
+      return;
+    }
+
     const success =
-      message.toLowerCase().includes("successfully") ||
-      message.toLowerCase().includes("opened");
+      normalizedMessage.includes("successfully") ||
+      normalizedMessage.includes("opened");
 
     const time = new Date().toLocaleTimeString([], {
       hour: "2-digit",
@@ -40,8 +52,12 @@ export default function Home() {
     ]);
   }
 
+  function handleVoiceCommand(command: string) {
+    processCommand(command, setStatus, addHistory);
+  }
+
   return (
-    <main className="min-h-screen bg-zinc-950 text-white p-10">
+    <main className="min-h-screen bg-zinc-950 p-10 text-white">
       <div className="mx-auto max-w-5xl">
 
         <h1 className="text-5xl font-bold tracking-wide">
@@ -65,6 +81,13 @@ export default function Home() {
                 addHistory
               )
             }
+          />
+        </div>
+
+        <div className="mt-4">
+          <VoiceButton
+            onCommand={handleVoiceCommand}
+            onStatusChange={setStatus}
           />
         </div>
 
@@ -132,7 +155,6 @@ export default function Home() {
             />
 
           </div>
-
         </div>
 
         <div className="mt-8 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
@@ -166,7 +188,6 @@ export default function Home() {
             />
 
           </div>
-
         </div>
 
         <StatusCard message={status} />
