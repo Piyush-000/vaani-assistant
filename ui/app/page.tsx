@@ -33,9 +33,39 @@ export default function Home() {
       return;
     }
 
+    /*
+     * Messages that represent a failed command.
+     */
+    const failure =
+      normalizedMessage.includes("i don't understand") ||
+      normalizedMessage.includes("i don't know") ||
+      normalizedMessage.includes("unable to connect") ||
+      normalizedMessage.includes("there is no previous command") ||
+      normalizedMessage.includes(
+        "i don't have a previous command"
+      ) ||
+      normalizedMessage.includes("please tell me") ||
+      normalizedMessage.includes("invalid command") ||
+      normalizedMessage.includes("unsupported command") ||
+      normalizedMessage.includes("not found") ||
+      normalizedMessage.includes("error:");
+
+    /*
+     * Everything that isn't a known failure and represents
+     * a successful action/query is displayed as successful.
+     */
     const success =
-      normalizedMessage.includes("successfully") ||
-      normalizedMessage.includes("opened");
+      !failure &&
+      (
+        normalizedMessage.includes("successfully") ||
+        normalizedMessage.includes("opened") ||
+        normalizedMessage.includes(
+          "your previous command was"
+        ) ||
+        normalizedMessage.includes(
+          "you last opened"
+        )
+      );
 
     const time = new Date().toLocaleTimeString([], {
       hour: "2-digit",
