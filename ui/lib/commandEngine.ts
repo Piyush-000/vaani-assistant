@@ -100,6 +100,21 @@ const recentCommands = new Set([
   "what were my last commands",
 ]);
 
+const memoryResetCommands = new Set([
+  "clear history",
+  "clear my history",
+  "clear memory",
+  "clear my memory",
+  "reset memory",
+  "reset my memory",
+  "reset history",
+  "reset my history",
+  "forget my history",
+  "forget command history",
+  "forget my memory",
+  "forget memory",
+]);
+
 const LAST_TARGET_KEY = "vaani_last_target";
 const LAST_COMMAND_KEY = "vaani_last_command";
 const COMMAND_HISTORY_KEY = "vaani_command_history";
@@ -247,6 +262,32 @@ function rememberCommand(
   saveCommandHistory(commandHistory);
 }
 
+function clearVaaniMemory(): void {
+  lastTarget = null;
+  lastCommand = null;
+  commandHistory = [];
+
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(
+      LAST_TARGET_KEY
+    );
+
+    window.localStorage.removeItem(
+      LAST_COMMAND_KEY
+    );
+
+    window.localStorage.removeItem(
+      COMMAND_HISTORY_KEY
+    );
+  } catch {
+    // Ignore localStorage errors.
+  }
+}
+
 function cleanCommand(command: string): string {
   return command
     .trim()
@@ -308,6 +349,26 @@ function isRecentCommandsQuery(
 
   return /^what (?:are|were) my last \d+ commands?$/.test(
     text
+  );
+}
+
+function isMemoryResetCommand(
+  text: string
+): boolean {
+  if (memoryResetCommands.has(text)) {
+    return true;
+  }
+
+  return (
+    /^clear (?:my )?(?:history|memory)$/.test(
+      text
+    ) ||
+    /^reset (?:my )?(?:history|memory)$/.test(
+      text
+    ) ||
+    /^forget (?:my )?(?:history|memory)$/.test(
+      text
+    )
   );
 }
 
@@ -391,7 +452,9 @@ function getDisplayName(
   );
 }
 
-function getHistoryCount(text: string): number {
+function getHistoryCount(
+  text: string
+): number {
   const match = text.match(
     /\blast\s+(\d+)\b/
   );
@@ -400,7 +463,8 @@ function getHistoryCount(text: string): number {
     return 3;
   }
 
-  const requested = Number(match[1]);
+  const requested =
+    Number(match[1]);
 
   if (
     !Number.isFinite(requested) ||
@@ -504,10 +568,6 @@ async function executeTarget(
       lastTarget = target;
       saveLastTarget(target);
 
-      /*
-       * Store the command that produced
-       * this successful action.
-       */
       lastCommand =
         originalCommand;
       saveLastCommand(originalCommand);
@@ -541,6 +601,26 @@ async function executeSingleCommand(
 
   if (!text) {
     return false;
+  }
+
+  /*
+   * ------------------------------------------------
+   * CLEAR / RESET VAANI MEMORY
+   * ------------------------------------------------
+   *
+   * This only clears Vaani's localStorage memory.
+   * It does NOT delete Windows files or apps.
+   */
+  if (isMemoryResetCommand(text)) {
+    clearVaaniMemory();
+
+    const message =
+      "Vaani memory cleared successfully.";
+
+    setStatus(message);
+    addHistory?.(message);
+
+    return true;
   }
 
   /*
@@ -812,6 +892,7 @@ export async function processCommand(
    * repeat
    * what did i open last
    * what were my last 3 commands
+   * clear history
    *
    * must reach executeSingleCommand
    * unchanged.
