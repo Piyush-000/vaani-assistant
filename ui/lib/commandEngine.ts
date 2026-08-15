@@ -63,6 +63,18 @@ const contextWords = new Set([
   "same",
 ]);
 
+const repeatCommands = new Set([
+  "repeat",
+  "repeat last",
+  "repeat the last",
+  "repeat last command",
+  "repeat the last command",
+  "repeat last app",
+  "repeat the last app",
+  "repeat last application",
+  "repeat the last application",
+]);
+
 const LAST_TARGET_KEY = "vaani_last_target";
 
 let lastTarget: string | null = null;
@@ -131,6 +143,10 @@ function splitCommands(command: string): string[] {
     .filter(Boolean);
 }
 
+function isRepeatCommand(text: string): boolean {
+  return repeatCommands.has(text);
+}
+
 function addMissingAction(command: string): string {
   const text = cleanCommand(command);
 
@@ -165,6 +181,47 @@ function resolveContextTarget(
   return lastTarget;
 }
 
+function resolveLastTarget(): string | null {
+  if (!lastTarget) {
+    lastTarget = loadLastTarget();
+  }
+
+  return lastTarget;
+}
+
+async function executeTarget(
+  target: string,
+  setStatus: StatusUpdater,
+  addHistory?: HistoryUpdater
+): Promise<boolean> {
+  setStatus(`Opening ${target}...`);
+
+  try {
+    const result = await sendCommand(
+      "open",
+      target
+    );
+
+    setStatus(result.message);
+    addHistory?.(result.message);
+
+    if (result.success !== false) {
+      lastTarget = target;
+      saveLastTarget(target);
+    }
+
+    return result.success !== false;
+  } catch {
+    const message =
+      "Unable to connect to backend.";
+
+    setStatus(message);
+    addHistory?.(message);
+
+    return false;
+  }
+}
+
 async function executeSingleCommand(
   command: string,
   setStatus: StatusUpdater,
@@ -174,6 +231,35 @@ async function executeSingleCommand(
 
   if (!text) {
     return false;
+  }
+
+  /*
+   * Repeat commands must be checked BEFORE
+   * normal command parsing.
+   *
+   * Examples:
+   * repeat
+   * repeat last command
+   * repeat the last app
+   */
+  if (isRepeatCommand(text)) {
+    const target = resolveLastTarget();
+
+    if (!target) {
+      const message =
+        "There is no previous command to repeat.";
+
+      setStatus(message);
+      addHistory?.(message);
+
+      return false;
+    }
+
+    return executeTarget(
+      target,
+      setStatus,
+      addHistory
+    );
   }
 
   const words = text.split(/\s+/);
@@ -217,8 +303,6 @@ async function executeSingleCommand(
   /*
    * Context support:
    *
-   * Example:
-   *
    * open chrome
    * open it
    *
@@ -242,38 +326,11 @@ async function executeSingleCommand(
     return false;
   }
 
-  setStatus(`Opening ${mappedTarget}...`);
-
-  try {
-    const result = await sendCommand(
-      "open",
-      mappedTarget
-    );
-
-    setStatus(result.message);
-    addHistory?.(result.message);
-
-    /*
-     * Save only successful targets.
-     *
-     * This gives Vaani persistent context even
-     * after refreshing the browser.
-     */
-    if (result.success !== false) {
-      lastTarget = mappedTarget;
-      saveLastTarget(mappedTarget);
-    }
-
-    return result.success !== false;
-  } catch {
-    const message =
-      "Unable to connect to backend.";
-
-    setStatus(message);
-    addHistory?.(message);
-
-    return false;
-  }
+  return executeTarget(
+    mappedTarget,
+    setStatus,
+    addHistory
+  );
 }
 
 export async function processCommand(
@@ -294,12 +351,17 @@ export async function processCommand(
 
   const commands = splitCommands(text);
 
+  /*
+   * IMPORTANT:
+   * Do NOT call addMissingAction() here before
+   * executeSingleCommand().
+   *
+   * executeSingleCommand() needs to see commands
+   * like "repeat" exactly as they were entered.
+   */
   for (const currentCommand of commands) {
-    const normalizedCommand =
-      addMissingAction(currentCommand);
-
     await executeSingleCommand(
-      normalizedCommand,
+      currentCommand,
       setStatus,
       addHistory
     );
