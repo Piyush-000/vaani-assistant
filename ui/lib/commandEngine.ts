@@ -2,6 +2,7 @@ import { sendCommand } from "./api";
 
 type StatusUpdater = (message: string) => void;
 type HistoryUpdater = (message: string) => void;
+type ClearHistoryUpdater = () => void;
 
 const aliases: Record<string, string> = {
   chrome: "chrome",
@@ -372,24 +373,6 @@ function isMemoryResetCommand(
   );
 }
 
-function addMissingAction(
-  command: string
-): string {
-  const text = cleanCommand(command);
-
-  const hasAction = text
-    .split(/\s+/)
-    .some((word) =>
-      actionWords.has(word)
-    );
-
-  if (hasAction) {
-    return text;
-  }
-
-  return `open ${text}`;
-}
-
 function resolveContextTarget(
   targetText: string
 ): string | null {
@@ -594,7 +577,8 @@ async function executeTarget(
 async function executeSingleCommand(
   command: string,
   setStatus: StatusUpdater,
-  addHistory?: HistoryUpdater
+  addHistory?: HistoryUpdater,
+  clearHistory?: ClearHistoryUpdater
 ): Promise<boolean> {
   const text =
     cleanCommand(command);
@@ -608,17 +592,33 @@ async function executeSingleCommand(
    * CLEAR / RESET VAANI MEMORY
    * ------------------------------------------------
    *
-   * This only clears Vaani's localStorage memory.
+   * This clears:
+   *
+   * 1. last target
+   * 2. last command
+   * 3. persistent command history
+   * 4. visible Recent Commands UI
+   *
    * It does NOT delete Windows files or apps.
    */
   if (isMemoryResetCommand(text)) {
     clearVaaniMemory();
 
+    // Clear the visible Recent Commands UI.
+    clearHistory?.();
+
     const message =
       "Vaani memory cleared successfully.";
 
     setStatus(message);
-    addHistory?.(message);
+
+    /*
+     * Do NOT call addHistory here.
+     *
+     * Otherwise the clear command itself
+     * would immediately appear in the
+     * newly-cleared Recent Commands list.
+     */
 
     return true;
   }
@@ -866,7 +866,8 @@ async function executeSingleCommand(
 export async function processCommand(
   command: string,
   setStatus: StatusUpdater,
-  addHistory?: HistoryUpdater
+  addHistory?: HistoryUpdater,
+  clearHistory?: ClearHistoryUpdater
 ) {
   const text =
     cleanCommand(command);
@@ -903,7 +904,8 @@ export async function processCommand(
     await executeSingleCommand(
       currentCommand,
       setStatus,
-      addHistory
+      addHistory,
+      clearHistory
     );
   }
 }

@@ -21,6 +21,10 @@ export default function Home() {
   const [status, setStatus] = useState("Ready...");
   const [history, setHistory] = useState<CommandHistoryItem[]>([]);
 
+  function clearHistory() {
+    setHistory([]);
+  }
+
   function addHistory(message: string) {
     const normalizedMessage = message.trim().toLowerCase();
 
@@ -55,23 +59,26 @@ export default function Home() {
      * a successful action/query is displayed as successful.
      */
     const success =
-  !failure &&
-  (
-    normalizedMessage.includes("successfully") ||
-    normalizedMessage.includes("opened") ||
-    normalizedMessage.includes(
-      "your previous command was"
-    ) ||
-    normalizedMessage.includes(
-      "you last opened"
-    ) ||
-    normalizedMessage.includes(
-      "your last"
-    ) ||
-    normalizedMessage.includes(
-      "your recent commands"
-    )
-  );
+      !failure &&
+      (
+        normalizedMessage.includes("successfully") ||
+        normalizedMessage.includes("opened") ||
+        normalizedMessage.includes(
+          "your previous command was"
+        ) ||
+        normalizedMessage.includes(
+          "you last opened"
+        ) ||
+        normalizedMessage.includes(
+          "your last"
+        ) ||
+        normalizedMessage.includes(
+          "your recent commands"
+        ) ||
+        normalizedMessage.includes(
+          "vanni memory cleared successfully"
+        )
+      );
 
     const time = new Date().toLocaleTimeString([], {
       hour: "2-digit",
@@ -89,7 +96,12 @@ export default function Home() {
   }
 
   function handleVoiceCommand(command: string) {
-    processCommand(command, setStatus, addHistory);
+    processCommand(
+      command,
+      setStatus,
+      addHistory,
+      clearHistory
+    );
   }
 
   return (
@@ -114,7 +126,8 @@ export default function Home() {
               processCommand(
                 command,
                 setStatus,
-                addHistory
+                addHistory,
+                clearHistory
               )
             }
           />
@@ -141,7 +154,8 @@ export default function Home() {
                 processCommand(
                   "open chrome",
                   setStatus,
-                  addHistory
+                  addHistory,
+                  clearHistory
                 )
               }
             />
@@ -152,7 +166,8 @@ export default function Home() {
                 processCommand(
                   "open vscode",
                   setStatus,
-                  addHistory
+                  addHistory,
+                  clearHistory
                 )
               }
             />
@@ -163,7 +178,8 @@ export default function Home() {
                 processCommand(
                   "open notepad",
                   setStatus,
-                  addHistory
+                  addHistory,
+                  clearHistory
                 )
               }
             />
@@ -174,7 +190,8 @@ export default function Home() {
                 processCommand(
                   "open calculator",
                   setStatus,
-                  addHistory
+                  addHistory,
+                  clearHistory
                 )
               }
             />
@@ -185,7 +202,8 @@ export default function Home() {
                 processCommand(
                   "open explorer",
                   setStatus,
-                  addHistory
+                  addHistory,
+                  clearHistory
                 )
               }
             />
@@ -207,7 +225,8 @@ export default function Home() {
                 processCommand(
                   "open downloads",
                   setStatus,
-                  addHistory
+                  addHistory,
+                  clearHistory
                 )
               }
             />
@@ -218,7 +237,8 @@ export default function Home() {
                 processCommand(
                   "open documents",
                   setStatus,
-                  addHistory
+                  addHistory,
+                  clearHistory
                 )
               }
             />
