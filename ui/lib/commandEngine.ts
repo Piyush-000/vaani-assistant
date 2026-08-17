@@ -49,6 +49,7 @@ const conversationalWords = new Set([
   "me",
   "now",
   "again",
+  "just",
 ]);
 
 const actionWords = new Set([
@@ -76,6 +77,11 @@ const repeatCommands = new Set([
   "repeat the last application",
   "repeat my previous command",
   "repeat my last command",
+  "do it again",
+  "do that again",
+  "open it again",
+  "launch it again",
+  "start it again",
 ]);
 
 const queryCommands = new Set([
@@ -317,10 +323,9 @@ function findTarget(
   return null;
 }
 
-function splitCommands(
-  command: string
-): string[] {
-  const parts = command.split(
+function splitCommands(command: string): string[] {
+  const text = cleanCommand(command);
+  const parts = text.split(
     /\s+(?:and\s+then|then|and)\s+/i
   );
 
@@ -527,6 +532,38 @@ function extractBeforeTarget(
   return match[1].trim();
 }
 
+function extractNaturalTarget(
+  targetText: string
+): string | null {
+  let cleaned = targetText.trim();
+
+  const words = cleaned.split(/\s+/);
+
+  while (
+    words.length > 0 &&
+    conversationalWords.has(words[0])
+  ) {
+    words.shift();
+  }
+
+  while (
+    words.length > 0 &&
+    conversationalWords.has(
+      words[words.length - 1]
+    )
+  ) {
+    words.pop();
+  }
+
+  cleaned = words.join(" ");
+
+  if (!cleaned) {
+    return null;
+  }
+
+  return findTarget(cleaned);
+}
+
 async function executeTarget(
   target: string,
   originalCommand: string,
@@ -587,24 +624,9 @@ async function executeSingleCommand(
     return false;
   }
 
-  /*
-   * ------------------------------------------------
-   * CLEAR / RESET VAANI MEMORY
-   * ------------------------------------------------
-   *
-   * This clears:
-   *
-   * 1. last target
-   * 2. last command
-   * 3. persistent command history
-   * 4. visible Recent Commands UI
-   *
-   * It does NOT delete Windows files or apps.
-   */
+  
   if (isMemoryResetCommand(text)) {
     clearVaaniMemory();
-
-    // Clear the visible Recent Commands UI.
     clearHistory?.();
 
     const message =
@@ -612,22 +634,9 @@ async function executeSingleCommand(
 
     setStatus(message);
 
-    /*
-     * Do NOT call addHistory here.
-     *
-     * Otherwise the clear command itself
-     * would immediately appear in the
-     * newly-cleared Recent Commands list.
-     */
-
     return true;
   }
 
-  /*
-   * ------------------------------------------------
-   * RECENT COMMANDS QUERY
-   * ------------------------------------------------
-   */
   if (isRecentCommandsQuery(text)) {
     const history =
       resolveCommandHistory();
@@ -663,11 +672,6 @@ async function executeSingleCommand(
     return true;
   }
 
-  /*
-   * ------------------------------------------------
-   * "WHAT DID I OPEN BEFORE X?"
-   * ------------------------------------------------
-   */
   const beforeTarget =
     extractBeforeTarget(text);
 
@@ -696,11 +700,6 @@ async function executeSingleCommand(
     return true;
   }
 
-  /*
-   * ------------------------------------------------
-   * LAST APP / COMMAND QUERY
-   * ------------------------------------------------
-   */
   if (isQueryCommand(text)) {
     const target =
       resolveLastTarget();
@@ -745,11 +744,6 @@ async function executeSingleCommand(
     return true;
   }
 
-  /*
-   * ------------------------------------------------
-   * REPEAT COMMAND
-   * ------------------------------------------------
-   */
   if (isRepeatCommand(text)) {
     const target =
       resolveLastTarget();
@@ -772,12 +766,6 @@ async function executeSingleCommand(
       true
     );
   }
-
-  /*
-   * ------------------------------------------------
-   * NORMAL OPEN / LAUNCH / START COMMAND
-   * ------------------------------------------------
-   */
   const words =
     text.split(/\s+/);
 
@@ -822,17 +810,19 @@ async function executeSingleCommand(
     return false;
   }
 
+ 
   let mappedTarget =
     findTarget(targetText);
 
-  /*
-   * Context support:
-   *
-   * open chrome
-   * open it
-   *
-   * "it" refers to Chrome.
-   */
+  
+  if (!mappedTarget) {
+    mappedTarget =
+      extractNaturalTarget(
+        targetText
+      );
+  }
+
+ 
   if (!mappedTarget) {
     mappedTarget =
       resolveContextTarget(
@@ -869,8 +859,7 @@ export async function processCommand(
   addHistory?: HistoryUpdater,
   clearHistory?: ClearHistoryUpdater
 ) {
-  const text =
-    cleanCommand(command);
+  const text = cleanCommand(command);
 
   if (!text) {
     const message =
@@ -882,27 +871,51 @@ export async function processCommand(
     return;
   }
 
-  const commands =
-    splitCommands(text);
+  const commands = splitCommands(text);
 
-  /*
-   * Do not add a missing action here.
-   *
-   * Commands such as:
-   *
-   * repeat
-   * what did i open last
-   * what were my last 3 commands
-   * clear history
-   *
-   * must reach executeSingleCommand
-   * unchanged.
-   */
-  for (
-    const currentCommand of commands
-  ) {
+ 
+  let previousAction:
+    | "open"
+    | "launch"
+    | "start"
+    | null = null;
+
+  for (const currentCommand of commands) {
+    let normalizedCommand =
+      cleanCommand(currentCommand);
+
+    const words =
+      normalizedCommand.split(/\s+/);
+
+    const hasAction = words.some(
+      (word) => actionWords.has(word)
+    );
+
+    
+    if (!hasAction && previousAction) {
+      normalizedCommand =
+        `${previousAction} ${normalizedCommand}`;
+    }
+
+    
+    const normalizedWords =
+      normalizedCommand.split(/\s+/);
+
+    const currentAction =
+      normalizedWords.find((word) =>
+        actionWords.has(word)
+      );
+
+    if (
+      currentAction === "open" ||
+      currentAction === "launch" ||
+      currentAction === "start"
+    ) {
+      previousAction = currentAction;
+    }
+
     await executeSingleCommand(
-      currentCommand,
+      normalizedCommand,
       setStatus,
       addHistory,
       clearHistory
